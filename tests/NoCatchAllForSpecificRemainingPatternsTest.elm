@@ -46,6 +46,32 @@ a =
 """
                     |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
                     |> Review.Test.expectNoErrors
+        , Test.test "allow: imported variant with non-catch-all attachment" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case Nothing of
+        Just 1 ->
+            1
+        
+        _ ->
+            0
+"""
+                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.expectNoErrors
+        , Test.test "allow: list with non-catch-all element" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case [] of
+        [ 1 ] ->
+            1
+        
+        _ ->
+            0
+"""
+                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.expectNoErrors
         , Test.test "allow: cases are [] and _::_" <|
             \() ->
                 """module A exposing (..)

@@ -299,7 +299,7 @@ visitExpression expression context =
                                 (case0 :: case1UpBeforeLast)
                                     |> List.map
                                         (\( casePattern, _ ) ->
-                                            casePattern |> patternToFiniteNarrow context.moduleOriginLookup
+                                            casePattern |> patternToFiniteNarrow context
                                         )
                                     |> listAllJust
                                     |> Maybe.andThen patternFiniteNarrowsCombine
@@ -698,10 +698,10 @@ type PatternFiniteNarrow
 
 
 patternToFiniteNarrow :
-    Review.ModuleNameLookupTable.ModuleNameLookupTable
+    ModuleContext
     -> Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern
     -> Maybe PatternFiniteNarrow
-patternToFiniteNarrow moduleOriginLookup (Elm.Syntax.Node.Node patternRange pattern) =
+patternToFiniteNarrow context (Elm.Syntax.Node.Node patternRange pattern) =
     case pattern of
         Elm.Syntax.Pattern.AllPattern ->
             Nothing
@@ -730,37 +730,45 @@ patternToFiniteNarrow moduleOriginLookup (Elm.Syntax.Node.Node patternRange patt
         Elm.Syntax.Pattern.RecordPattern _ ->
             Nothing
 
-        Elm.Syntax.Pattern.NamedPattern variantName _ ->
-            case Review.ModuleNameLookupTable.moduleNameAt moduleOriginLookup patternRange of
-                Nothing ->
-                    Nothing
+        Elm.Syntax.Pattern.NamedPattern variantName attachmentPatterns ->
+            if attachmentPatterns |> List.all (\attachmentPattern -> attachmentPattern |> patternCatchesAll context) then
+                case Review.ModuleNameLookupTable.moduleNameAt context.moduleOriginLookup patternRange of
+                    Nothing ->
+                        Nothing
 
-                Just moduleOrigin ->
-                    Just
-                        (VariantPattern
-                            { qualification = variantName.moduleName
-                            , moduleOrigin = moduleOrigin
-                            , unqualifiedName = variantName.name
-                            }
-                        )
+                    Just moduleOrigin ->
+                        Just
+                            (VariantPattern
+                                { qualification = variantName.moduleName
+                                , moduleOrigin = moduleOrigin
+                                , unqualifiedName = variantName.name
+                                }
+                            )
+
+            else
+                Nothing
 
         Elm.Syntax.Pattern.TuplePattern _ ->
             -- TODO for now
             Nothing
 
         Elm.Syntax.Pattern.AsPattern aliasedPattern _ ->
-            patternToFiniteNarrow moduleOriginLookup aliasedPattern
+            patternToFiniteNarrow context aliasedPattern
 
         Elm.Syntax.Pattern.ParenthesizedPattern inParens ->
-            patternToFiniteNarrow moduleOriginLookup inParens
+            patternToFiniteNarrow context inParens
 
         Elm.Syntax.Pattern.ListPattern elementPatterns ->
-            Just
-                (ListPattern
-                    { elementCount = elementPatterns |> List.length
-                    , hasTail = False
-                    }
-                )
+            if elementPatterns |> List.all (\elementPattern -> elementPattern |> patternCatchesAll context) then
+                Just
+                    (ListPattern
+                        { elementCount = elementPatterns |> List.length
+                        , hasTail = False
+                        }
+                    )
+
+            else
+                Nothing
 
         Elm.Syntax.Pattern.UnConsPattern headPattern tailPattern ->
             let
@@ -771,18 +779,22 @@ patternToFiniteNarrow moduleOriginLookup (Elm.Syntax.Node.Node patternRange patt
                 expanded =
                     consPatternExpand { head = headPattern, tail = tailPattern }
             in
-            Just
-                (ListPattern
-                    { elementCount = expanded.elements |> List.length
-                    , hasTail =
-                        case expanded.tail of
-                            Nothing ->
-                                False
+            if expanded.elements |> List.all (\elementPattern -> elementPattern |> patternCatchesAll context) then
+                Just
+                    (ListPattern
+                        { elementCount = expanded.elements |> List.length
+                        , hasTail =
+                            case expanded.tail of
+                                Nothing ->
+                                    False
 
-                            Just _ ->
-                                True
-                    }
-                )
+                                Just _ ->
+                                    True
+                        }
+                    )
+
+            else
+                Nothing
 
 
 consPatternExpand :
