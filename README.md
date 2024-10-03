@@ -1,6 +1,5 @@
-Provides [`elm-review`](https://package.elm-lang.org/packages/jfmengels/elm-review/latest/) rule
-[`NoCatchAllForSpecificRemainingPatterns.rule`](https://package.elm-lang.org/packages/lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/1.0.0/Review-CaseExhaustiveOf#rule)
-which enforces listing all specific cases if possible.
+The [`elm-review`](https://package.elm-lang.org/packages/jfmengels/elm-review/latest/) rule
+[`NoCatchAllForSpecificRemainingPatterns.rule`](https://package.elm-lang.org/packages/lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/1.0.0/Review-CaseExhaustiveOf#rule) enforces that all specific cases are listed if possible.
 
 Below would be reported for example
 
