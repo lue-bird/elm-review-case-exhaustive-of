@@ -254,7 +254,19 @@ visitDeclarations declarations context =
                                             )
                                     )
 
-                        _ ->
+                        Elm.Syntax.Declaration.FunctionDeclaration _ ->
+                            soFar
+
+                        Elm.Syntax.Declaration.AliasDeclaration _ ->
+                            soFar
+
+                        Elm.Syntax.Declaration.PortDeclaration _ ->
+                            soFar
+
+                        Elm.Syntax.Declaration.InfixDeclaration _ ->
+                            soFar
+
+                        Elm.Syntax.Declaration.Destructuring _ _ ->
                             soFar
                 )
                 FastDict.empty
@@ -801,16 +813,62 @@ tailPatternExpand :
         { elements : List (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
         , tail : Maybe (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
         }
-tailPatternExpand (Elm.Syntax.Node.Node patternRange pattern) =
-    case pattern of
+tailPatternExpand patternNode =
+    let
+        patternAsTail :
+            ()
+            ->
+                { elements : List (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
+                , tail : Maybe (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
+                }
+        patternAsTail () =
+            { elements = [], tail = Just patternNode }
+    in
+    case patternNode |> Elm.Syntax.Node.value of
         Elm.Syntax.Pattern.ListPattern elementPatterns ->
             { elements = elementPatterns, tail = Nothing }
 
         Elm.Syntax.Pattern.UnConsPattern headPattern tailPattern ->
             consPatternExpand { head = headPattern, tail = tailPattern }
 
-        otherPattern ->
-            { elements = [], tail = Just (Elm.Syntax.Node.Node patternRange otherPattern) }
+        Elm.Syntax.Pattern.AllPattern ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.UnitPattern ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.CharPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.StringPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.IntPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.HexPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.FloatPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.TuplePattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.RecordPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.VarPattern _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.NamedPattern _ _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.AsPattern _ _ ->
+            patternAsTail ()
+
+        Elm.Syntax.Pattern.ParenthesizedPattern _ ->
+            patternAsTail ()
 
 
 type CatchFiniteNarrow
