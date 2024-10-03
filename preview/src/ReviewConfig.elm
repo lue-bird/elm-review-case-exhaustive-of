@@ -11,11 +11,11 @@ when inside the directory containing this file.
 
 -}
 
-import Review.CaseExhaustiveOf
+import NoCatchAllForSpecificRemainingPatterns
 import Review.Rule exposing (Rule)
 
 
 config : List Rule
 config =
-    [ Review.CaseExhaustiveOf.rule
+    [ NoCatchAllForSpecificRemainingPatterns.rule
     ]

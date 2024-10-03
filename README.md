@@ -1,29 +1,96 @@
-# elm-review-case-exhaustive-of
+Provides [`elm-review`](https://package.elm-lang.org/packages/jfmengels/elm-review/latest/) rule
+[`NoCatchAllForSpecificRemainingPatterns.rule`](https://package.elm-lang.org/packages/lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/1.0.0/Review-CaseExhaustiveOf#rule)
+which enforces listing all specific cases if possible.
 
-Provides [`elm-review`](https://package.elm-lang.org/packages/jfmengels/elm-review/latest/) rules to REPLACEME.
+Below would be reported for example
 
-## Provided rules
+```elm
+type Resource
+    = Loaded String
+    | FailedToLoad String
+    | Loading
 
-- [`Review.CaseExhaustiveOf`](https://package.elm-lang.org/packages/lue-bird/elm-review-case-exhaustive-of/1.0.0/Review-CaseExhaustiveOf) - Reports REPLACEME.
+displayResource : Resource -> String
+displayResource resource =
+    case resource of
+        Loaded text ->
+            Ui.text text
+        
+        _ ->
+            Ui.spinner
+```
 
-## Configuration
+Try it:
+
+```bash
+elm-review --template lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/example
+```
+
+If you like it, add it, add it to your configuration
 
 ```elm
 module ReviewConfig exposing (config)
 
-import Review.CaseExhaustiveOf
+import NoCatchAllForSpecificRemainingPatterns
 import Review.Rule exposing (Rule)
 
 config : List Rule
 config =
-    [ Review.CaseExhaustiveOf.rule
+    [ NoCatchAllForSpecificRemainingPatterns.rule
     ]
 ```
 
-## Try it out
+## why?
 
-You can try the example configuration above out by running the following command:
+  - no accidentally missed cases:
+    ```elm
+    patternIsZero expression =
+        case expression of
+            Elm.Syntax.Pattern.IntPattern int ->
+                int == 0
+            
+            _ ->
+                -- accidentally missed HexPattern!
+                False
+    ```
 
-```bash
-elm-review --template lue-bird/elm-review-case-exhaustive-of/example
-```
+  - a reminder if another variant is added in the future:
+    ```elm
+    type Resource
+        = Loaded String
+        | FailedToLoad String
+        | Loading
+        -- added
+        | PartiallyLoaded String
+
+    displayResource : Resource -> String
+    displayResource resource =
+        case resource of
+            Loaded text ->
+                Ui.text text
+            
+            _ ->
+                -- we actually should display partially loaded
+                -- but the compiler doesn't remind us
+                Ui.spinner
+    ```
+
+  - less jumping around to understand the code
+    ```elm
+    case result of
+        Ok geoLocation ->
+            let
+                ...
+            in
+            a
+                bunchOf
+                code
+
+        _ ->
+            -- what is _ ?
+            0
+    ```
+
+
+## not implemented (yet?)
+  - nested patterns like in tuples, variants or lists

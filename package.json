@@ -1,5 +1,5 @@
 {
-  "name": "elm-review-case-exhaustive-of",
+  "name": "elm-review-no-catch-all-for-specific-remaining-patterns",
   "scripts": {
     "test": "npm-run-all --print-name --silent --sequential test:make test:format test:run test:review test:package",
     "test:make": "elm make --docs=docs.json",
