@@ -297,142 +297,12 @@ visitExpression expression context =
                                 []
 
                             Just previousCasesCatchFiniteNarrow ->
-                                let
-                                    casePatternsToReplaceLastWith : List String
-                                    casePatternsToReplaceLastWith =
-                                        case previousCasesCatchFiniteNarrow of
-                                            CatchList catchList ->
-                                                case catchList.allAfterElementCount of
-                                                    Nothing ->
-                                                        let
-                                                            greatestSpecificElementCount : Int
-                                                            greatestSpecificElementCount =
-                                                                catchList.specificElementCounts
-                                                                    |> FastSet.getMax
-                                                                    |> Maybe.withDefault 0
-
-                                                            specificElementCountCasePatternsToAdd : List String
-                                                            specificElementCountCasePatternsToAdd =
-                                                                FastSet.diff
-                                                                    (FastSet.fromList (List.range 0 greatestSpecificElementCount))
-                                                                    catchList.specificElementCounts
-                                                                    |> FastSet.toList
-                                                                    |> List.map printListPatternIgnoringElementsWithCount
-                                                        in
-                                                        specificElementCountCasePatternsToAdd
-                                                            ++ [ String.repeat greatestSpecificElementCount "_ :: " ++ "_ :: _"
-                                                               ]
-
-                                                    Just allAfterElementCount ->
-                                                        FastSet.diff
-                                                            (FastSet.fromList (List.range 0 (allAfterElementCount - 1)))
-                                                            catchList.specificElementCounts
-                                                            |> FastSet.toList
-                                                            |> List.map printListPatternIgnoringElementsWithCount
-
-                                            CatchChoiceType catchChoiceType ->
-                                                let
-                                                    allVariantsToCatch : Maybe (List { parameterCount : Int, name : String })
-                                                    allVariantsToCatch =
-                                                        case catchChoiceType.variantNames |> FastSet.getMin of
-                                                            Nothing ->
-                                                                Nothing
-
-                                                            Just someCaughtUnqualifiedVariantName ->
-                                                                case catchChoiceType.moduleOrigin of
-                                                                    [] ->
-                                                                        context.moduleDeclaredChoiceTypes
-                                                                            |> fastDictAnyJustMap
-                                                                                (\variants ->
-                                                                                    if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
-                                                                                        Just variants
-
-                                                                                    else
-                                                                                        Nothing
-                                                                                )
-
-                                                                    moduleNamePart0 :: moduleNamePart1Up ->
-                                                                        case context.importedChoiceTypes |> FastDict.get (moduleNamePart0 :: moduleNamePart1Up) of
-                                                                            Nothing ->
-                                                                                Nothing
-
-                                                                            Just choiceTypesFromReferencedModule ->
-                                                                                choiceTypesFromReferencedModule
-                                                                                    |> fastDictAnyJustMap
-                                                                                        (\variants ->
-                                                                                            if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
-                                                                                                Just variants
-
-                                                                                            else
-                                                                                                Nothing
-                                                                                        )
-                                                in
-                                                allVariantsToCatch
-                                                    |> Maybe.withDefault []
-                                                    |> List.filterMap
-                                                        (\variantToCatch ->
-                                                            if catchChoiceType.variantNames |> FastSet.member variantToCatch.name then
-                                                                Nothing
-
-                                                            else
-                                                                Just
-                                                                    (referenceToString { qualification = catchChoiceType.qualification, unqualifiedName = variantToCatch.name }
-                                                                        ++ String.repeat variantToCatch.parameterCount " _"
-                                                                    )
-                                                        )
-
-                                    (Elm.Syntax.Node.Node lastCasePatternRange _) =
-                                        lastCasePattern
-
-                                    caseIndentation : Int
-                                    caseIndentation =
-                                        lastCasePatternRange.start.column - 1
-
-                                    expressionForEachAddedCasePrinted : String
-                                    expressionForEachAddedCasePrinted =
-                                        if lastCasePattern |> Elm.Syntax.Node.value |> patternContainsVariables then
-                                            String.repeat (caseIndentation + 4) " "
-                                                ++ "let\n"
-                                                ++ String.repeat (caseIndentation + 8) " "
-                                                ++ context.sourceInRange lastCasePatternRange
-                                                ++ " =\n"
-                                                ++ String.repeat (caseIndentation + 12) " "
-                                                ++ stringIndentBy
-                                                    8
-                                                    (context.sourceInRange (caseOf.expression |> Elm.Syntax.Node.range))
-                                                ++ "\n"
-                                                ++ String.repeat (caseIndentation + 4) " "
-                                                ++ "in\n"
-                                                ++ String.repeat (caseIndentation + 4) " "
-                                                ++ context.sourceInRange lastCaseExpressionRange
-
-                                        else
-                                            String.repeat (caseIndentation + 4) " "
-                                                ++ context.sourceInRange lastCaseExpressionRange
-                                in
-                                [ Review.Rule.errorWithFix
-                                    { message = "catch-all can be replaced by more specific patterns"
-                                    , details =
-                                        [ "The last case in this case-of covers a finite number of specific patterns."
-                                        , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-                                        ]
+                                [ badCaseOfToError context
+                                    { previousCasesCatchFiniteNarrow = previousCasesCatchFiniteNarrow
+                                    , casedExpressionRange = caseOf.expression |> Elm.Syntax.Node.range
+                                    , lastCasePattern = lastCasePattern
+                                    , lastCaseExpressionRange = lastCaseExpressionRange
                                     }
-                                    lastCasePatternRange
-                                    [ Review.Fix.replaceRangeBy
-                                        { start = { row = lastCasePatternRange.start.row, column = 1 }
-                                        , end = lastCaseExpressionRange.end
-                                        }
-                                        (casePatternsToReplaceLastWith
-                                            |> List.map
-                                                (\casePatternToReplaceLastWith ->
-                                                    String.repeat caseIndentation " "
-                                                        ++ casePatternToReplaceLastWith
-                                                        ++ " ->\n"
-                                                        ++ expressionForEachAddedCasePrinted
-                                                )
-                                            |> String.join "\n\n"
-                                        )
-                                    ]
                                 ]
 
                     else
@@ -506,6 +376,154 @@ visitExpression expression context =
 
         Elm.Syntax.Expression.GLSLExpression _ ->
             []
+
+
+badCaseOfToError :
+    ModuleContext
+    ->
+        { previousCasesCatchFiniteNarrow : CatchFiniteNarrow
+        , lastCasePattern : Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern
+        , casedExpressionRange : Elm.Syntax.Range.Range
+        , lastCaseExpressionRange : Elm.Syntax.Range.Range
+        }
+    -> Review.Rule.Error {}
+badCaseOfToError context caseOf =
+    let
+        casePatternsToReplaceLastWith : List String
+        casePatternsToReplaceLastWith =
+            case caseOf.previousCasesCatchFiniteNarrow of
+                CatchList catchList ->
+                    case catchList.allAfterElementCount of
+                        Nothing ->
+                            let
+                                greatestSpecificElementCount : Int
+                                greatestSpecificElementCount =
+                                    catchList.specificElementCounts
+                                        |> FastSet.getMax
+                                        |> Maybe.withDefault 0
+
+                                specificElementCountCasePatternsToAdd : List String
+                                specificElementCountCasePatternsToAdd =
+                                    FastSet.diff
+                                        (FastSet.fromList (List.range 0 greatestSpecificElementCount))
+                                        catchList.specificElementCounts
+                                        |> FastSet.toList
+                                        |> List.map printListPatternIgnoringElementsWithCount
+                            in
+                            specificElementCountCasePatternsToAdd
+                                ++ [ String.repeat greatestSpecificElementCount "_ :: " ++ "_ :: _"
+                                   ]
+
+                        Just allAfterElementCount ->
+                            FastSet.diff
+                                (FastSet.fromList (List.range 0 (allAfterElementCount - 1)))
+                                catchList.specificElementCounts
+                                |> FastSet.toList
+                                |> List.map printListPatternIgnoringElementsWithCount
+
+                CatchChoiceType catchChoiceType ->
+                    let
+                        allVariantsToCatch : Maybe (List { parameterCount : Int, name : String })
+                        allVariantsToCatch =
+                            case catchChoiceType.variantNames |> FastSet.getMin of
+                                Nothing ->
+                                    Nothing
+
+                                Just someCaughtUnqualifiedVariantName ->
+                                    case catchChoiceType.moduleOrigin of
+                                        [] ->
+                                            context.moduleDeclaredChoiceTypes
+                                                |> fastDictAnyJustMap
+                                                    (\variants ->
+                                                        if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
+                                                            Just variants
+
+                                                        else
+                                                            Nothing
+                                                    )
+
+                                        moduleNamePart0 :: moduleNamePart1Up ->
+                                            case context.importedChoiceTypes |> FastDict.get (moduleNamePart0 :: moduleNamePart1Up) of
+                                                Nothing ->
+                                                    Nothing
+
+                                                Just choiceTypesFromReferencedModule ->
+                                                    choiceTypesFromReferencedModule
+                                                        |> fastDictAnyJustMap
+                                                            (\variants ->
+                                                                if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
+                                                                    Just variants
+
+                                                                else
+                                                                    Nothing
+                                                            )
+                    in
+                    allVariantsToCatch
+                        |> Maybe.withDefault []
+                        |> List.filterMap
+                            (\variantToCatch ->
+                                if catchChoiceType.variantNames |> FastSet.member variantToCatch.name then
+                                    Nothing
+
+                                else
+                                    Just
+                                        (referenceToString { qualification = catchChoiceType.qualification, unqualifiedName = variantToCatch.name }
+                                            ++ String.repeat variantToCatch.parameterCount " _"
+                                        )
+                            )
+
+        (Elm.Syntax.Node.Node lastCasePatternRange _) =
+            caseOf.lastCasePattern
+
+        caseIndentation : Int
+        caseIndentation =
+            lastCasePatternRange.start.column - 1
+
+        expressionForEachAddedCasePrinted : String
+        expressionForEachAddedCasePrinted =
+            if caseOf.lastCasePattern |> Elm.Syntax.Node.value |> patternContainsVariables then
+                String.repeat (caseIndentation + 4) " "
+                    ++ "let\n"
+                    ++ String.repeat (caseIndentation + 8) " "
+                    ++ context.sourceInRange lastCasePatternRange
+                    ++ " =\n"
+                    ++ String.repeat (caseIndentation + 12) " "
+                    ++ stringIndentBy
+                        8
+                        (context.sourceInRange caseOf.casedExpressionRange)
+                    ++ "\n"
+                    ++ String.repeat (caseIndentation + 4) " "
+                    ++ "in\n"
+                    ++ String.repeat (caseIndentation + 4) " "
+                    ++ context.sourceInRange caseOf.lastCaseExpressionRange
+
+            else
+                String.repeat (caseIndentation + 4) " "
+                    ++ context.sourceInRange caseOf.lastCaseExpressionRange
+    in
+    Review.Rule.errorWithFix
+        { message = "catch-all can be replaced by more specific patterns"
+        , details =
+            [ "The last case in this case-of covers a finite number of specific patterns."
+            , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+            ]
+        }
+        lastCasePatternRange
+        [ Review.Fix.replaceRangeBy
+            { start = { row = lastCasePatternRange.start.row, column = 1 }
+            , end = caseOf.lastCaseExpressionRange.end
+            }
+            (casePatternsToReplaceLastWith
+                |> List.map
+                    (\casePatternToReplaceLastWith ->
+                        String.repeat caseIndentation " "
+                            ++ casePatternToReplaceLastWith
+                            ++ " ->\n"
+                            ++ expressionForEachAddedCasePrinted
+                    )
+                |> String.join "\n\n"
+            )
+        ]
 
 
 printListPatternIgnoringElementsWithCount : Int -> String
